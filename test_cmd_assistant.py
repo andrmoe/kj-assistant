@@ -2,7 +2,7 @@ import pytest
 import io
 import json
 from pathlib import Path
-from typing import Generator, Callable, Optional
+from typing import Generator, Callable, Iterable, Any
 import argparse
 import time
 
@@ -147,13 +147,6 @@ def test_assistant_new_command(session_manager: SessionManager) -> None:
     assert "mock_stdin" in response
 
 
-# TODO: Mock the api call
-def test_query_ollama() -> None:
-    chunks = list(query_ollama("Repeat 'test' back to me once."))
-    assert chunks
-    with pytest.raises(IOError):
-        list(query_ollama("Repeat 'test' back to me once.", url="http://localhost:11434/api/wrongendpoint"))
-
 @pytest.fixture
 def default_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setenv("HISTORY", f"300  {abbreviation} --listen")
@@ -274,3 +267,48 @@ def test_keyboard_interupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     monkeypatch.setenv("HISTORY", f"306  {abbreviation} --listen")
     with pytest.raises(SystemExit):
         shell(["--listen", "--path", str(tmp_path)])
+
+type ApiMonkeyFunc = Callable[[str, Iterable[bytes]], pytest.MonkeyPatch]
+@pytest.fixture
+def api_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> ApiMonkeyFunc:
+    def inner(module: str, response_stream: Iterable[bytes]) -> pytest.MonkeyPatch:
+        class FakeResponse:
+            def __init__(self, data: Any=None, status: int=200) -> None:
+                self._data = data
+                self.status_code = status
+                self.text = ""
+
+            def iter_lines(self) -> Generator[bytes, None, None]:
+                for chunk in response_stream:
+                    yield chunk
+
+        def fake_post(url: str, headers: Any=None, data: Any=None, stream: bool=False) -> FakeResponse:
+            if url == "http://localhost:11434/api/generate":
+                return FakeResponse()
+            else:
+                return FakeResponse(status=404)
+
+        monkeypatch.setattr(f"{module}.requests.post", fake_post)
+        return monkeypatch
+    return inner
+
+
+def test_query_ollama_with_context(api_monkeypatch: ApiMonkeyFunc) -> None:
+    api_monkeypatch("ollamaapi", [b'{"response":"test"}', b'{"context": [1,2,3,4,5]}', b'', b'{"done":"True"}'])
+    chunks = list(query_ollama("Repeat 'test' back to me once."))
+    assert chunks
+
+def test_query_ollama_without_context(api_monkeypatch: ApiMonkeyFunc) -> None:
+    api_monkeypatch("ollamaapi", [b'{"response":"test"}', b'', b'{"done":"True"}'])
+    chunks = list(query_ollama("Repeat 'test' back to me once."))
+    assert chunks
+
+def test_query_ollama_empty_stream(api_monkeypatch: ApiMonkeyFunc) -> None:
+    api_monkeypatch("ollamaapi", [])
+    chunks = list(query_ollama("Repeat 'test' back to me once."))
+    assert not chunks  # The query should return an empty generator if the ai responds with nothing
+
+def test_query_ollama_wrong_endpoint(api_monkeypatch: ApiMonkeyFunc) -> None:
+    api_monkeypatch("ollamaapi", [])
+    with pytest.raises(IOError):
+        list(query_ollama("Repeat 'test' back to me once.", url="http://localhost:11434/api/wrongendpoint"))
