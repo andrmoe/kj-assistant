@@ -26,7 +26,6 @@ def default_prompt() -> str:
 
 def command_to_prompt(command: CommandData) -> str:
     prompt = "<command>\n" + command.command + "\n</command>\n"
-    #  TODO: Test without stdin
     if command.stdin:
         prompt += "<stdin>\n" + command.stdin + "\n</stdin>\n"
     if command.ai_response:
