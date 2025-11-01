@@ -154,15 +154,6 @@ def test_query_ollama() -> None:
     with pytest.raises(IOError):
         list(query_ollama("Repeat 'test' back to me once.", url="http://localhost:11434/api/wrongendpoint"))
 
-type MonkeyFunc = Callable[[str], pytest.MonkeyPatch]
-@pytest.fixture
-def shell_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> MonkeyFunc:
-    def inner(history: str) -> pytest.MonkeyPatch:
-        monkeypatch.setenv("HISTORY", history)
-        monkeypatch.setattr("sys.stdin", io.StringIO("<user request>\n"))
-        return monkeypatch
-    return inner
-
 @pytest.fixture
 def default_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setenv("HISTORY", f"300  {abbreviation} --listen")
@@ -203,6 +194,10 @@ def test_shell_without_pipe(default_monkeypatch: pytest.MonkeyPatch, capsys: pyt
 
 def test_shell_switch_session(session: CommandSession, default_monkeypatch: pytest.MonkeyPatch, 
                               capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    session.commands = []
+    session.save()
+    assert shell(["--listen", "--path", str(tmp_path), "--switch-session", str(session.id)]) == 0
+    session = SessionManager(tmp_path).create_new_session()
     flag = "This is the switch session test"
     session.commands.append(CommandData("<command>", "<stdin>", ai_response=flag))
     session.save()
