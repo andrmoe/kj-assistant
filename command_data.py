@@ -37,10 +37,12 @@ class CommandSession:
     def from_file(cls: type[Self], path: Path) -> Self:  # TODO: Add error handling when file doesn't exist
         session_dict = json.loads(path.read_text(encoding="utf-8"))
         
-        if session_dict["commands"] is not None:
+        if "commands" in session_dict:
             if not isinstance(session_dict["commands"], list):
                 raise TypeError(f"'commands' must be a list, not a {type(session_dict['commands']).__name__}.\n{session_dict['commands']=}")
             session_dict["commands"] = [CommandData(**command) for command in session_dict["commands"]]
+        else:
+            raise ValueError(f"Session stored at {path}, has no 'commands' array.")
 
         return cls(**session_dict)
     

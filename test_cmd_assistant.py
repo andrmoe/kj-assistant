@@ -82,15 +82,36 @@ def test_session_from_file(tmp_path: Path) -> None:
     with pytest.raises(TypeError):
         CommandSession.from_file(tmp_path / session.filename)
 
+
+def test_malformed_session(tmp_path: Path) -> None:
+    session_manager = SessionManager(tmp_path)
+    session = session_manager.create_new_session("Hello")
+    file_path = tmp_path / session.filename
+    
+    with file_path.open("r") as f:
+        data = json.load(f)
+
+    del data["commands"]
+
+    with file_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f)
+    
+    with pytest.raises(ValueError) as e:
+        CommandSession.from_file(tmp_path / session.filename)
+    assert str(tmp_path / session.filename) in str(e.value)
+
+
 def mock_ai_api(prompt: str) -> Generator[str | list[int], None, None]:
-        if "linux" in prompt:
+        if "linux" in prompt:  # pragma: no cover
             yield "response to linux"
-        if "mock_command" in prompt:
+        if "mock_command" in prompt:  # pragma: no cover
             yield "response to mock_command"
-        if "mock_stdin" in prompt:
+        if "mock_stdin" in prompt:  # pragma: no cover
             yield "response to mock_stdin"
-        if "mock_ai_response" in prompt:
+        if "mock_ai_response" in prompt:  # pragma: no cover
             yield "response to mock_ai_response"
+        # This is the context from Ollama
+        yield [435,7,345,76,43]
 
 
 def test_assistant_creation(tmp_path: Path) -> None:
@@ -115,8 +136,7 @@ def test_assistant_new_command(tmp_path: Path) -> None:
     response = "".join([chunk for chunk in assistant.new_command(command)])
     most_recent_session = assistant.session_manager.load_most_recent_session()
     assert most_recent_session is not None
-    if most_recent_session is not None:
-        assert most_recent_session.commands[-1].ai_response == response
+    assert most_recent_session.commands[-1].ai_response == response
     assert "mock_command" in response
     assert "mock_stdin" in response
 
