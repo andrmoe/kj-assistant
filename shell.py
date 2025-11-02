@@ -63,7 +63,7 @@ def shell(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.switch_session == "interactive":
-        raise NotImplementedError("This will be an interactive way to pick a session.")  # pragma: no cover - TODO: Implement
+        raise NotImplementedError("This will be an interactive way to pick a session.")  # TODO: Implement
     if args.switch_session is not None and (not args.switch_session.isdigit() or int(args.switch_session) < 0):
         raise argparse.ArgumentTypeError("session id must be non-negative integer.")
     

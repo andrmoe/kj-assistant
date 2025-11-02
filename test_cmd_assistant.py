@@ -197,6 +197,8 @@ def test_shell_switch_session(session: CommandSession, default_monkeypatch: pyte
     assert shell(["--listen", "--path", str(tmp_path), "--switch-session", str(session.id)]) == 0
     captured = capsys.readouterr()
     assert flag in captured.out.strip()
+    with pytest.raises(NotImplementedError):  # TODO: Test actual implementation
+        shell(["--listen", "--path", str(tmp_path), "--switch-session"])
 
 def test_shell_new_session(session: CommandSession, default_monkeypatch: pytest.MonkeyPatch, 
                            capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
