@@ -28,10 +28,13 @@ class CommandSession:
     @property
     def filename(self) -> str:
         return self.make_filename(self.id)
+    
+    @property
+    def path(self) -> Path:
+        return Path(self.save_dir) / self.filename
 
     def save(self) -> None:
-        path = Path(self.save_dir) / self.filename
-        path.write_text(json.dumps(asdict(self), indent=2))
+        self.path.write_text(json.dumps(asdict(self), indent=2))
     
     @classmethod
     def from_file(cls: type[Self], path: Path) -> Self:  # TODO: Add error handling when file doesn't exist
@@ -81,13 +84,11 @@ class SessionManager:
         session.save()
         self.sessions.append(session)
         return session
-    
-    def find_most_recent_session(self) -> Path | None:
-        session_files = self.get_session_files()
-        return max(session_files, key=lambda p: p.stat().st_mtime, default=None)
+        
     
     def load_most_recent_session(self) -> CommandSession:
-        session_path = self.find_most_recent_session()
+        session_files = self.get_session_files()
+        session_path = max(session_files, key=lambda p: p.stat().st_mtime, default=None)
         if session_path is None:
             return self.create_new_session()
         
