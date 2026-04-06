@@ -2,9 +2,10 @@ import pytest
 import io
 import json
 from pathlib import Path
-from typing import Generator, Callable, Iterable, Any
+from typing import Generator, Callable, Iterable, Any, Self, NoReturn
 import argparse
 import time
+import sys
 
 from abbreviation import abbreviation
 from command_data import CommandData, CommandSession, SessionManager
@@ -267,8 +268,15 @@ def test_shell_all_options_have_help() -> None:
     missing_help = [action.option_strings for action in parser._actions if action.option_strings and not action.help]
     assert not missing_help, f"Missing help for options: {missing_help}"
 
+class InterruptingStdin:
+    def __iter__(self) -> Self:
+        return self
+
+    def __next__(self) -> NoReturn:
+        raise KeyboardInterrupt()
+
 def test_keyboard_interupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("shell.read_stdin", lambda forward_input: (_ for _ in ()).throw(KeyboardInterrupt()))
+    monkeypatch.setattr(sys, "stdin", InterruptingStdin())
     monkeypatch.setenv("HISTORY", f"306  {abbreviation} --listen")
     with pytest.raises(SystemExit):
         shell(["--listen", "--path", str(tmp_path)])

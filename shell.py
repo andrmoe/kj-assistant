@@ -29,15 +29,6 @@ def get_command_history() -> str:
     return history
 
 
-def read_stdin(forward_input: bool=True) -> str:
-    output = ""
-    for line in sys.stdin:
-        if forward_input:
-            print(line, end="", flush=True)
-        output += line
-    return output
-
-
 """Takes an iterable of Any and prints all strings as they arrive. Returns the full printed string"""
 def print_ai_response(response_iter: Iterable[Any]) -> str:
     response = ""
@@ -48,10 +39,6 @@ def print_ai_response(response_iter: Iterable[Any]) -> str:
         
     print()
     return response
-
-
-def welcome_message(session_id: int) -> str:
-    return f"{abbreviation} command line assistant. Session {session_id}"
 
 
 def shell(argv: Optional[Sequence[str]] = None) -> int:
@@ -70,13 +57,17 @@ def shell(argv: Optional[Sequence[str]] = None) -> int:
     session_manager = SessionManager(Path(args.path), new_session=args.new_session)
     assistant = Assistant(session_manager, session_id=args.switch_session, verbose=args.verbose)
 
-    print(welcome_message(assistant.session.id))
+    print(f"{abbreviation} command line assistant. Session {assistant.session.id}")
     if assistant.initial_message:
         print(assistant.initial_message)
     
     try:
         # Don't echo the input to the terminal, if the user didn't use a pipe.
-        output = read_stdin(forward_input=not last_command.startswith(abbreviation))
+        output = ""
+        for line in sys.stdin:
+            if not last_command.startswith(abbreviation):
+                print(line, end="", flush=True)
+            output += line
     except KeyboardInterrupt:  # Just exit if the user presses Ctrl+C
         exit(0)
  
