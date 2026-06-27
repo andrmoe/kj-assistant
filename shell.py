@@ -29,13 +29,12 @@ def get_command_history() -> str:
     return history
 
 
-"""Takes an iterable of Any and prints all strings as they arrive. Returns the full printed string"""
-def print_ai_response(response_iter: Iterable[Any]) -> str:
+"""Takes an iterable of strings and prints them as they arrive. Returns the full printed string"""
+def print_ai_response(response_iter: Iterable[str]) -> str:
     response = ""
     for chunk in response_iter:
-        if isinstance(chunk, str):
-            print(chunk, end="", flush=True)
-            response += chunk
+        print(chunk, end="", flush=True)
+        response += chunk
         
     print()
     return response

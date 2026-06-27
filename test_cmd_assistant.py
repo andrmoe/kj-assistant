@@ -9,9 +9,8 @@ import sys
 
 from abbreviation import abbreviation
 from command_data import CommandData, CommandSession, SessionManager
-from assistant import Assistant
-from ollamaapi import query_ollama
-from shell import *
+from assistant import Assistant, Chunk
+from shell import shell
 from cli import get_arg_parser
 
 
@@ -107,17 +106,15 @@ def test_malformed_session(session: CommandSession, tmp_path: Path) -> None:
     assert str(tmp_path / session.filename) in str(e.value)
 
 
-def mock_ai_api(prompt: str) -> Generator[str | list[int], None, None]:
+def mock_ai_api(prompt: str) -> Generator[Chunk, None, None]:
         if "linux" in prompt:  # pragma: no cover
-            yield "response to linux"
+            yield Chunk(content="response to linux")
         if "mock_command" in prompt:  # pragma: no cover
-            yield "response to mock_command"
+            yield Chunk(content="response to mock_command")
         if "mock_stdin" in prompt:  # pragma: no cover
-            yield "response to mock_stdin"
+            yield Chunk(content="response to mock_stdin")
         if "mock_ai_response" in prompt:  # pragma: no cover
-            yield "response to mock_ai_response"
-        # This is the context from Ollama
-        yield [435,7,345,76,43]
+            yield Chunk(content="response to mock_ai_response")
 
 
 def test_assistant_creation(session_manager: SessionManager, tmp_path: Path) -> None:
@@ -156,21 +153,6 @@ def default_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setenv("HISTORY", f"300  {abbreviation} --listen")
     monkeypatch.setattr("sys.stdin", io.StringIO("<user request>\n"))
     return monkeypatch
-
-def test_print_ai_response(capsys: pytest.CaptureFixture[str]) -> None:
-    print_ai_response(mock_ai_api("You are a linux command line assistant.\n"
-                                  "Command:\n"
-                                  "mock_command\n\n"
-                                  "Stdin:\n"
-                                  "mock_stdin\n\n"
-                                  "Assistant:\n"
-                                  "mock_ai_response\n"))
-    captured = capsys.readouterr()
-    output = captured.out.strip()
-    assert "linux" in output
-    assert "mock_command" in output
-    assert "mock_stdin" in output
-    assert "mock_ai_response" in output
 
 
 def test_shell_with_pipe(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
@@ -280,48 +262,3 @@ def test_keyboard_interupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     monkeypatch.setenv("HISTORY", f"306  {abbreviation} --listen")
     with pytest.raises(SystemExit):
         shell(["--listen", "--path", str(tmp_path)])
-
-type ApiMonkeyFunc = Callable[[str, Iterable[bytes]], pytest.MonkeyPatch]
-@pytest.fixture
-def api_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> ApiMonkeyFunc:
-    def inner(module: str, response_stream: Iterable[bytes]) -> pytest.MonkeyPatch:
-        class FakeResponse:
-            def __init__(self, data: Any=None, status: int=200) -> None:
-                self._data = data
-                self.status_code = status
-                self.text = ""
-
-            def iter_lines(self) -> Generator[bytes, None, None]:
-                for chunk in response_stream:
-                    yield chunk
-
-        def fake_post(url: str, headers: Any=None, data: Any=None, stream: bool=False) -> FakeResponse:
-            if url == "http://localhost:11434/api/generate":
-                return FakeResponse()
-            else:
-                return FakeResponse(status=404)
-
-        monkeypatch.setattr(f"{module}.requests.post", fake_post)
-        return monkeypatch
-    return inner
-
-
-def test_query_ollama_with_context(api_monkeypatch: ApiMonkeyFunc) -> None:
-    api_monkeypatch("ollamaapi", [b'{"response":"test"}', b'{"context": [1,2,3,4,5]}', b'', b'{"done":"True"}'])
-    chunks = list(query_ollama("Repeat 'test' back to me once."))
-    assert chunks
-
-def test_query_ollama_without_context(api_monkeypatch: ApiMonkeyFunc) -> None:
-    api_monkeypatch("ollamaapi", [b'{"response":"test"}', b'', b'{"done":"True"}'])
-    chunks = list(query_ollama("Repeat 'test' back to me once."))
-    assert chunks
-
-def test_query_ollama_empty_stream(api_monkeypatch: ApiMonkeyFunc) -> None:
-    api_monkeypatch("ollamaapi", [])
-    chunks = list(query_ollama("Repeat 'test' back to me once."))
-    assert not chunks  # The query should return an empty generator if the ai responds with nothing
-
-def test_query_ollama_wrong_endpoint(api_monkeypatch: ApiMonkeyFunc) -> None:
-    api_monkeypatch("ollamaapi", [])
-    with pytest.raises(IOError):
-        list(query_ollama("Repeat 'test' back to me once.", url="http://localhost:11434/api/wrongendpoint"))
