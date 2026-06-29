@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Iterable, Optional, Sequence, Any
+from typing import Iterable, Optional, Sequence
 import argparse
 import re
 

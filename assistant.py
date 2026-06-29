@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from typing import Any, Callable, Generator
 
 import requests
@@ -48,9 +47,7 @@ def query_openrouter(
         "stream": True,
     }
 
-    response = requests.post(
-        url, headers=headers, json=request_data, stream=True
-    )
+    response = requests.post(url, headers=headers, json=request_data, stream=True)
     response.raise_for_status()
     response.encoding = "utf-8"
     

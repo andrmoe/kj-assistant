@@ -1,8 +1,7 @@
 from dataclasses import dataclass, asdict
 import json
 from pathlib import Path
-from typing import Self, Any
-from abbreviation import abbreviation
+from typing import Self
 
 
 # TODO: Change dataclasses to TypedDict
