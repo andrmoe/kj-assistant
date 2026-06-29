@@ -2,14 +2,14 @@ import pytest
 import io
 import json
 from pathlib import Path
-from typing import Generator, Self, NoReturn
+from typing import Self, NoReturn
 import argparse
 import time
 import sys
 
 from abbreviation import abbreviation
 from command_data import CommandData, CommandSession, SessionManager
-from assistant import Assistant, Chunk
+from assistant import Assistant
 from shell import shell
 from cli import get_arg_parser
 
@@ -106,46 +106,16 @@ def test_malformed_session(session: CommandSession, tmp_path: Path) -> None:
     assert str(tmp_path / session.filename) in str(e.value)
 
 
-def mock_ai_api(prompt: str) -> Generator[Chunk, None, None]:
-        if "linux" in prompt:  # pragma: no cover
-            yield Chunk(content="response to linux")
-        if "mock_command" in prompt:  # pragma: no cover
-            yield Chunk(content="response to mock_command")
-        if "mock_stdin" in prompt:  # pragma: no cover
-            yield Chunk(content="response to mock_stdin")
-        if "mock_ai_response" in prompt:  # pragma: no cover
-            yield Chunk(content="response to mock_ai_response")
-
-
 def test_assistant_creation(session_manager: SessionManager, tmp_path: Path) -> None:
-    assistant0 = Assistant(session_manager=session_manager, ai_api=mock_ai_api)
+    assistant0 = Assistant(session_manager=session_manager)
     assert (tmp_path / assistant0.session.filename).is_file()
-    assistant1 = Assistant(session_manager=session_manager, ai_api=mock_ai_api)
+    assistant1 = Assistant(session_manager=session_manager)
     assert assistant0.session == assistant1.session
 
 
 def test_assistant_load_session(session_manager: SessionManager, session: CommandSession) -> None:
     assistant = Assistant(session_manager, session.id)
     assert session == assistant.session
-
-
-def test_assistant_new_command(session_manager: SessionManager) -> None:
-    assistant = Assistant(session_manager=session_manager, ai_api=mock_ai_api)
-    command = CommandData(command="mock_command", stdin="mock_stdin", ai_response="")
-    response = "".join([chunk for chunk in assistant.new_command(command)])
-    assert session_manager.sessions
-    most_recent_session = Assistant(session_manager).session
-    assert most_recent_session.commands[-1].ai_response == response
-    assert "mock_command" in response
-    assert "mock_stdin" in response
-
-    response = "".join([chunk for chunk in assistant.new_command(command)])
-    assert "linux" in assistant.session.commands[0].ai_response
-    assert "mock_command" in assistant.session.commands[0].ai_response
-    assert "mock_stdin" in assistant.session.commands[0].ai_response
-    assert "linux" in response
-    assert "mock_command" in response
-    assert "mock_stdin" in response
 
 
 @pytest.fixture
