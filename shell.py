@@ -54,7 +54,7 @@ def shell(argv: Optional[Sequence[str]] = None) -> int:
         raise argparse.ArgumentTypeError("session id must be non-negative integer.")
     
     session_manager = SessionManager(Path(args.path), new_session=args.new_session)
-    assistant = Assistant(session_manager, session_id=args.switch_session, verbose=args.verbose, remote_url="https://openrouter.ai/api/v1/chat/completions")
+    assistant = Assistant(session_manager, session_id=args.switch_session, verbose=args.verbose, remote_url=args.url)
 
     print(f"{abbreviation} command line assistant. Session {assistant.session.id}")
     if assistant.initial_message:

@@ -1,7 +1,7 @@
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Generator
+from typing import Any, Generator, Iterable
 
 import pytest
 
@@ -31,11 +31,11 @@ def create_chunk(content: str, is_finished: bool) -> dict[str, Any]:
 
 
 def create_chunks(
-    token_generator: Generator[str, None, None],
+    token_generator: Iterable[str],
 ) -> Generator[str, None, None]:
     for token in token_generator:
-        yield f"data: {json.dumps(create_chunk(token, False))}"
-    yield f"data: {json.dumps(create_chunk('', True))}"
+        yield f"data: {json.dumps(create_chunk(token, False))}\n\n"
+    yield f"data: {json.dumps(create_chunk('', True))}\n\n"
     last_chunk = create_chunk("", True)
     last_chunk["usage"] = {
         "prompt_tokens": 0,
@@ -60,20 +60,22 @@ def create_chunks(
             "audio_tokens": 0,
         },
     }
-    yield f"data: {json.dumps(last_chunk)}"
+    yield f"data: {json.dumps(last_chunk)}\n\n"
+    yield "data: [DONE]\n\n"
 
 
 class StreamingHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
 
-        for word in LOREM_WORDS:
-            chunk = (word + " ").encode("utf-8")
+        for chunk in create_chunks(LOREM_WORDS):
             self.wfile.write(f"{len(chunk):X}\r\n".encode("ascii"))
-            self.wfile.write(chunk)
+            self.wfile.write(chunk.encode("utf-8"))
             self.wfile.write(b"\r\n")
             self.wfile.flush()
 
@@ -85,12 +87,12 @@ class StreamingHandler(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def streaming_server() -> Generator[str, None, None]:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), StreamingHandler)
+def mock_ai_api() -> Generator[None, None, None]:
+    server = ThreadingHTTPServer(("127.0.0.1", 8000), StreamingHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    yield ""
+    yield None
 
     server.shutdown()
     server.server_close()

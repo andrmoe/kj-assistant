@@ -22,5 +22,7 @@ def get_arg_parser() -> argparse.ArgumentParser:
     
     parser.add_argument("-v", "--verbose", action="store_true", 
                         help="print debug info")
+    parser.add_argument("-u", "--url", default="https://openrouter.ai/api/v1/chat/completions",
+                        help="url for remote LLM api")
     return parser
 

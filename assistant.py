@@ -1,10 +1,11 @@
 import json
+import os
 from typing import Any, Callable, Generator
 
 import requests
+from dotenv import load_dotenv
 
 from abbreviation import abbreviation
-from cli import default_storage_path
 from command_data import CommandData, CommandSession, SessionManager
 from prompts import command_session_to_prompt
 
@@ -21,11 +22,13 @@ class Chunk:
         self.context = context
 
 
+key_name = "OPENROUTER_KEY"
+
+
 def get_api_key() -> str:
+    load_dotenv()
     try:
-        key = json.loads(
-            (default_storage_path() / ".env").read_text(encoding="utf-8")
-        )["openrouter"]
+        key = os.getenv(key_name)
         if isinstance(key, str):
            return key
         else:
@@ -33,7 +36,7 @@ def get_api_key() -> str:
     except:
         print("Failed to load OpenRouter API key")
         raise
-"https://openrouter.ai/api/v1/chat/completions"
+
 
 class Assistant:
     initial_message: str
@@ -41,8 +44,8 @@ class Assistant:
     session_manager: SessionManager
     ai_api: Callable[[str], Generator[Chunk, None, None]]
 
-    def __init__(self, session_manager: SessionManager, session_id: int | None = None, 
-                 verbose: bool = False, remote_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, session_manager: SessionManager, remote_url: str, session_id: int | None = None, 
+        verbose: bool = False):
         self.verbose = verbose
         self.remote_url = remote_url
         self.session_manager = session_manager

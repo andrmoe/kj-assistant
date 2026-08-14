@@ -12,7 +12,9 @@ from command_data import CommandData, CommandSession, SessionManager
 from assistant import Assistant
 from shell import shell
 from cli import get_arg_parser
+from mock_api import mock_ai_api
 
+test_url = "http://127.0.0.1:8000"
 
 @pytest.fixture
 def session_manager(tmp_path: Path) -> SessionManager:
@@ -54,19 +56,19 @@ def test_create_new_session(session_manager: SessionManager, tmp_path: Path) -> 
 
 
 def test_find_most_recent_session(session_manager: SessionManager, tmp_path: Path) -> None:
-    assistant = Assistant(session_manager)
+    assistant = Assistant(session_manager, test_url)
     assert len(session_manager.sessions) == 1
     for _ in range(4):
         session_manager.create_new_session("Hello")
         time.sleep(0.01)
-    assistant = Assistant(session_manager)
+    assistant = Assistant(session_manager, test_url)
     most_recent_session_path = assistant.session.path
     assert most_recent_session_path is not None
     assert most_recent_session_path.name == "session.4.json"
     assert session_manager.sessions[2].prompt is not None
     session_manager.sessions[2].prompt += " World!"
     session_manager.sessions[2].save()
-    assistant = Assistant(session_manager)
+    assistant = Assistant(session_manager, test_url)
     most_recent_session_path = assistant.session.path
     assert most_recent_session_path is not None
     assert most_recent_session_path.name == f"session.{session_manager.sessions[2].id}.json"
@@ -107,14 +109,14 @@ def test_malformed_session(session: CommandSession, tmp_path: Path) -> None:
 
 
 def test_assistant_creation(session_manager: SessionManager, tmp_path: Path) -> None:
-    assistant0 = Assistant(session_manager=session_manager)
+    assistant0 = Assistant(session_manager, test_url)
     assert (tmp_path / assistant0.session.filename).is_file()
-    assistant1 = Assistant(session_manager=session_manager)
+    assistant1 = Assistant(session_manager, test_url)
     assert assistant0.session == assistant1.session
 
 
 def test_assistant_load_session(session_manager: SessionManager, session: CommandSession) -> None:
-    assistant = Assistant(session_manager, session.id)
+    assistant = Assistant(session_manager, test_url, session_id=session.id)
     assert session == assistant.session
 
 
@@ -232,3 +234,12 @@ def test_keyboard_interupt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     monkeypatch.setenv("HISTORY", f"306  {abbreviation} --listen")
     with pytest.raises(SystemExit):
         shell(["--listen", "--path", str(tmp_path)])
+
+def test_assistant_with_mock_api(mock_ai_api: None, monkeypatch: pytest.MonkeyPatch, 
+                                 capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("<user request>\n"))
+    monkeypatch.setenv("HISTORY", f"308  {abbreviation} --listen")
+    shell(["--path", str(tmp_path), "--url", test_url])
+    captured = capsys.readouterr()
+    assert "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod "
+    "tempor incididunt ut labore et dolore magna aliqua" in captured.out.strip()
