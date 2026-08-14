@@ -1,15 +1,16 @@
 import json
 import os
-from typing import Any, Callable, Generator
-
+from typing import Any, Callable, Generator, Annotated
 import requests
+from pydantic import BaseModel, ValidationError, Field
 from dotenv import load_dotenv
+from typing_extensions import final
 
 from abbreviation import abbreviation
 from command_data import CommandData, CommandSession, SessionManager
 from prompts import command_session_to_prompt
 
-
+@final
 class Chunk:
     def __init__(
         self,
@@ -20,6 +21,15 @@ class Chunk:
         self.content = content
         self.role = role
         self.context = context
+
+
+class StreamedData(BaseModel):
+    class StreamedChoice(BaseModel):
+        class StreamedDelta(BaseModel):
+            content: str
+            role: str | None = None
+        delta: StreamedDelta
+    choices: list[StreamedChoice] = Field(min_length=1)
 
 
 key_name = "OPENROUTER_KEY"
@@ -42,7 +52,6 @@ class Assistant:
     initial_message: str
     session: CommandSession
     session_manager: SessionManager
-    ai_api: Callable[[str], Generator[Chunk, None, None]]
 
     def __init__(self, session_manager: SessionManager, remote_url: str, session_id: int | None = None, 
         verbose: bool = False):
@@ -78,23 +87,13 @@ class Assistant:
         
         for line in response.iter_lines(decode_unicode=True):
             if line and not line.startswith(":") and line.startswith("data:"):
-                data: str = line[len("data:") :].strip()
+                data = line[len("data:") :].strip()
                 if data == "[DONE]":
                     break
-                event: dict[str, Any] = json.loads(data)
-                if "choices" not in event:
-                    raise IOError("'choices' not present in response from openrouter")
-                choices: list[dict[str, Any]] = event["choices"]
-                if len(choices) == 0:
-                    raise IOError("'choices' from openrouter is empty")
-                choice: dict[str, Any] = choices[0]  # TODO: Handle multiple choices
-                if "delta" not in choice:
-                    raise IOError("No 'delta' in response from openrouter")
-                delta: dict[str, Any] = choice["delta"]
-                if "content" not in delta or not isinstance(delta["content"], str):
-                    raise IOError("No 'content' in response from openrouter")
-                role: str | None = delta["role"] if "role" in delta else None
-                yield Chunk(delta["content"], role)
+                event = StreamedData.model_validate(json.loads(data))  # TODO: Write tests 
+                # TODO: handle exceptions. Write the exception to a log, skip the bad chunk, and notify the user after the response
+                delta = event.choices[0].delta  # TODO: Handle multiple choices
+                yield Chunk(delta.content, delta.role)
     
 
     def new_command(
