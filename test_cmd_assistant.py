@@ -9,7 +9,7 @@ import sys
 
 from abbreviation import abbreviation
 from command_data import CommandData, CommandSession, SessionManager
-from assistant import Assistant
+from assistant import Assistant, key_name
 from shell import shell
 from cli import get_arg_parser
 from mock_api import mock_ai_api
@@ -243,3 +243,17 @@ def test_assistant_with_mock_api(mock_ai_api: None, monkeypatch: pytest.MonkeyPa
     captured = capsys.readouterr()
     assert "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod "
     "tempor incididunt ut labore et dolore magna aliqua" in captured.out.strip()
+
+def test_missing_api_key(monkeypatch: pytest.MonkeyPatch, session_manager: SessionManager) -> None:
+    assistant = Assistant(session_manager, test_url)
+    monkeypatch.delenv(key_name, raising=False)
+    with pytest.raises(OSError, match="Failed to load API key"):
+        list(assistant.query_remote_ai("<request>"))
+
+def test_empty_mock_api_response(mock_ai_api: None, monkeypatch: pytest.MonkeyPatch, 
+                                 capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("<user request>\n"))
+    monkeypatch.setenv("HISTORY", f"310  {abbreviation} --listen")
+    shell(["--path", str(tmp_path), "--url", test_url+"/no_reply"])
+    captured = capsys.readouterr()
+    assert "Lorem ipsum" not in captured.out.strip()

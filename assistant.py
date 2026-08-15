@@ -1,8 +1,8 @@
 import json
 import os
-from typing import Any, Callable, Generator, Annotated
+from typing import Generator
 import requests
-from pydantic import BaseModel, ValidationError, Field
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from typing_extensions import final
 
@@ -36,16 +36,11 @@ key_name = "OPENROUTER_KEY"
 
 
 def get_api_key() -> str:
-    load_dotenv()
-    try:
-        key = os.getenv(key_name)
-        if isinstance(key, str):
-           return key
-        else:
-           raise EnvironmentError(f"Returned key is not a str. Got a {type(key)} instead.") 
-    except:
-        print("Failed to load OpenRouter API key")
-        raise
+    key = os.getenv(key_name)
+    if key is None:
+        raise OSError(f"Failed to load API key {key_name}")
+    else:
+        return key
 
 
 class Assistant:
@@ -55,6 +50,7 @@ class Assistant:
 
     def __init__(self, session_manager: SessionManager, remote_url: str, session_id: int | None = None, 
         verbose: bool = False):
+        load_dotenv()
         self.verbose = verbose
         self.remote_url = remote_url
         self.session_manager = session_manager

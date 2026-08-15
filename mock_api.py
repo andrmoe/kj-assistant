@@ -72,7 +72,10 @@ class StreamingHandler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
-
+        if self.path == "/no_reply":
+            self.wfile.write(b"0\r\n\r\n")
+            self.wfile.flush()
+            return
         for chunk in create_chunks(LOREM_WORDS):
             self.wfile.write(f"{len(chunk):X}\r\n".encode("ascii"))
             self.wfile.write(chunk.encode("utf-8"))
